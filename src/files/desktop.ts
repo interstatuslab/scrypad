@@ -6,9 +6,9 @@ export interface DesktopFile {
   content: string;
 }
 
-function core(): { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<any> } | null {
-  const t = (window as any).__TAURI__;
-  return t && t.core && typeof t.core.invoke === 'function' ? t.core : null;
+function core(): NonNullable<TauriGlobal['core']> | null {
+  const c = window.__TAURI__?.core;
+  return c && typeof c.invoke === 'function' ? c : null;
 }
 
 export function isDesktop(): boolean {
@@ -17,7 +17,7 @@ export function isDesktop(): boolean {
 
 /** Shows the Open dialog. Resolves null if the person cancels. */
 export async function desktopOpen(): Promise<DesktopFile | null> {
-  return (await core()!.invoke('open_file')) ?? null;
+  return (await core()!.invoke<DesktopFile | null>('open_file')) ?? null;
 }
 
 /** Writes to a known path. */
@@ -27,12 +27,12 @@ export async function desktopWrite(path: string, content: string): Promise<void>
 
 /** Shows the Save As dialog and writes. Resolves the new path and name, or null if cancelled. */
 export async function desktopSaveAs(suggestedName: string, content: string): Promise<{ path: string; name: string } | null> {
-  return (await core()!.invoke('save_file_as', { suggestedName, content })) ?? null;
+  return (await core()!.invoke<DesktopFile | null>('save_file_as', { suggestedName, content })) ?? null;
 }
 
 /** Reads a file by its path (File › Recent). */
 export async function desktopReadPath(path: string): Promise<DesktopFile> {
-  return await core()!.invoke('read_path', { path });
+  return await core()!.invoke<DesktopFile>('read_path', { path });
 }
 
 /** The .html file ScryPad was opened with (double-click in Explorer), if any. */
@@ -40,7 +40,7 @@ export async function desktopLaunchFile(): Promise<DesktopFile | null> {
   const c = core();
   if (!c) return null;
   try {
-    return (await c.invoke('launch_file')) ?? null;
+    return (await c.invoke<DesktopFile | null>('launch_file')) ?? null;
   } catch {
     return null;
   }

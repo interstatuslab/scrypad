@@ -189,7 +189,7 @@ export class FileManager {
   public async openDirectory(): Promise<ProjectFolder | null> {
     if (canUseFilePicker('showDirectoryPicker')) {
       try {
-        const dirHandle = await (window as any).showDirectoryPicker({
+        const dirHandle = await window.showDirectoryPicker({
           mode: 'readwrite'
         });
         const project = await ProjectFolder.fromDirectoryHandle(dirHandle);
@@ -197,8 +197,8 @@ export class FileManager {
         this.currentProject = project;
         this.notifyProject();
         return project;
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
           console.error('Error opening directory:', err);
         }
         return null;
@@ -271,7 +271,7 @@ export class FileManager {
     }
     if (canUseFilePicker('showOpenFilePicker')) {
       try {
-        const [handle] = await (window as any).showOpenFilePicker({
+        const [handle] = await window.showOpenFilePicker({
           types: [
             {
               description: 'HTML Files',
@@ -291,8 +291,8 @@ export class FileManager {
         };
         this.notify();
         return content;
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
           console.error('Error opening file via File System Access:', err);
         }
         return null;
@@ -328,7 +328,7 @@ export class FileManager {
    * Save file using project handle, existing handle or prompt Save As
    */
   /** What File › Recent needs to reopen the current file later. */
-  public recentInfo(): { name: string; path?: string | null; handle?: any } {
+  public recentInfo(): { name: string; path?: string | null; handle?: FileSystemFileHandle | null } {
     return { name: this.state.name, path: this.state.diskPath ?? null, handle: this.state.handle ?? null };
   }
 
@@ -409,7 +409,7 @@ export class FileManager {
       try {
         let handle = this.state.handle;
         if (!handle || forceSaveAs) {
-          handle = await (window as any).showSaveFilePicker({
+          handle = await window.showSaveFilePicker({
             suggestedName: this.state.name || 'index.html',
             types: [
               {
@@ -421,7 +421,7 @@ export class FileManager {
         }
         if (!handle) return false;
 
-        const writable = await (handle as any).createWritable();
+        const writable = await handle.createWritable();
         await writable.write(content);
         await writable.close();
 
@@ -434,8 +434,8 @@ export class FileManager {
         };
         this.notify();
         return true;
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
           console.error('Save failed via File System Access:', err);
         }
         return false;

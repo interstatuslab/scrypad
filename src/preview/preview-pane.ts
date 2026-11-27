@@ -148,7 +148,7 @@ export class PreviewPane {
         sel?.removeAllRanges();
         sel?.addRange(range);
       }
-      win.document.execCommand(command, false, value as any);
+      win.document.execCommand(command, false, value ?? undefined);
       this.notifyDocChange();
     }
   }
@@ -170,7 +170,7 @@ export class PreviewPane {
 
   public updateActiveElementStyle(property: string, value: string) {
     if (!this.activeElement) return;
-    (this.activeElement.style as any)[property] = value;
+    Object.assign(this.activeElement.style, { [property]: value });
     this.notifyDocChange();
   }
 
@@ -225,7 +225,7 @@ export class PreviewPane {
     };
     const walk = (rules: CSSRuleList) => {
       for (const rule of Array.from(rules)) {
-        if (rule instanceof (doc.defaultView as any).CSSMediaRule) {
+        if (doc.defaultView && rule instanceof doc.defaultView.CSSMediaRule) {
           const mr = rule as CSSMediaRule;
           if (!this.originalMedia.has(mr)) this.originalMedia.set(mr, mr.media.mediaText);
           const original = this.originalMedia.get(mr)!;

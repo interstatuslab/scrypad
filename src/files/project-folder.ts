@@ -63,7 +63,7 @@ export class ProjectFolder {
   }
 
   private async scanDirectory(dir: FileSystemDirectoryHandle, currentPath: string) {
-    for await (const entry of (dir as any).values()) {
+    for await (const entry of dir.values()) {
       const entryPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
       if (entry.kind === 'file') {
         const fileHandle = entry as FileSystemFileHandle;
@@ -139,7 +139,7 @@ export class ProjectFolder {
     entry.inMemoryContent = content;
     if (entry.handle) {
       try {
-        const writable = await (entry.handle as any).createWritable();
+        const writable = await entry.handle.createWritable();
         await writable.write(content);
         await writable.close();
         return true;

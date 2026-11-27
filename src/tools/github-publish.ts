@@ -28,7 +28,15 @@ export class GitHubError extends Error {
   constructor(message: string, public status = 0) { super(message); }
 }
 
-async function gh(token: string, path: string, init: RequestInit = {}): Promise<any> {
+// The parts of GitHub's API replies this file reads
+interface GhUser { login: string }
+interface GhRepo { full_name: string; default_branch?: string; html_url: string }
+interface GhRef { object: { sha: string } }
+interface GhCommit { sha: string; tree: { sha: string } }
+interface GhSha { sha: string }
+interface GhTreeItem { path: string; mode: string; type: 'blob'; sha: string }
+
+async function gh<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
     res = await fetch(API + path, {
@@ -43,10 +51,10 @@ async function gh(token: string, path: string, init: RequestInit = {}): Promise<
   } catch {
     throw new GitHubError('ScryPad couldn\'t reach GitHub. Check your internet connection and try again.');
   }
-  if (res.status === 204) return null;
+  if (res.status === 204) return null as T;
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new GitHubError(body?.message || `GitHub said no (${res.status})`, res.status);
-  return body;
+  return body as T;
 }
 
 function b64(bytes: Uint8Array): string {
@@ -69,9 +77,9 @@ export async function publishToPages(
   confirmUpdate: (fullName: string) => Promise<boolean>,
 ): Promise<PublishResult | null> {
   onStep('Checking your GitHub account');
-  let user: any;
+  let user: GhUser;
   try {
-    user = await gh(token, '/user');
+    user = await gh<GhUser>(token, '/user');
   } catch (e) {
     if (e instanceof GitHubError && e.status === 401) throw new GitHubError('GitHub didn\'t accept that token. It may be mistyped or expired.', 401);
     throw e;
@@ -79,10 +87,10 @@ export async function publishToPages(
   const owner: string = user.login;
   const name = cleanRepoName(repoName);
 
-  let repo: any = null;
+  let repo: GhRepo | null = null;
   let created = false;
   try {
-    repo = await gh(token, `/repos/${owner}/${name}`);
+    repo = await gh<GhRepo>(token, `/repos/${owner}/${name}`);
   } catch (e) {
     if (!(e instanceof GitHubError && e.status === 404)) throw e;
   }
@@ -90,7 +98,7 @@ export async function publishToPages(
     if (!(await confirmUpdate(repo.full_name))) return null;
   } else {
     onStep(`Making the ${name} repository`);
-    repo = await gh(token, '/user/repos', {
+    repo = await gh<GhRepo>(token, '/user/repos', {
       method: 'POST',
       body: JSON.stringify({ name, description: 'Made with ScryPad', private: false, auto_init: true }),
     });
@@ -99,20 +107,20 @@ export async function publishToPages(
   const branch: string = repo.default_branch || 'main';
 
   // The newest commit on the branch (a brand-new repository can take a moment to have one)
-  let head: any = null;
+  let head: GhRef | null = null;
   for (let i = 0; i < 6 && !head; i++) {
-    try { head = await gh(token, `/repos/${owner}/${name}/git/ref/heads/${branch}`); }
+    try { head = await gh<GhRef>(token, `/repos/${owner}/${name}/git/ref/heads/${branch}`); }
     catch (e) { if (i === 5) throw e; await new Promise((r) => setTimeout(r, 1000)); }
   }
-  const baseCommit = await gh(token, `/repos/${owner}/${name}/git/commits/${head.object.sha}`);
+  const baseCommit = await gh<GhCommit>(token, `/repos/${owner}/${name}/git/commits/${head!.object.sha}`);
 
   const all = files.some((f) => f.path === '.nojekyll') ? files : [...files, { path: '.nojekyll', data: new Uint8Array() }];
-  const tree: any[] = [];
+  const tree: GhTreeItem[] = [];
   let n = 0;
   for (const f of all) {
     n++;
     onStep(`Uploading ${n} of ${all.length}: ${f.path}`);
-    const blob = await gh(token, `/repos/${owner}/${name}/git/blobs`, {
+    const blob = await gh<GhSha>(token, `/repos/${owner}/${name}/git/blobs`, {
       method: 'POST',
       body: JSON.stringify({ content: b64(f.data), encoding: 'base64' }),
     });
@@ -120,13 +128,13 @@ export async function publishToPages(
   }
 
   onStep('Saving the upload');
-  const newTree = await gh(token, `/repos/${owner}/${name}/git/trees`, {
+  const newTree = await gh<GhSha>(token, `/repos/${owner}/${name}/git/trees`, {
     method: 'POST',
     body: JSON.stringify({ base_tree: baseCommit.tree.sha, tree }),
   });
-  const commit = await gh(token, `/repos/${owner}/${name}/git/commits`, {
+  const commit = await gh<GhSha>(token, `/repos/${owner}/${name}/git/commits`, {
     method: 'POST',
-    body: JSON.stringify({ message: created ? 'Publish from ScryPad' : 'Update from ScryPad', tree: newTree.sha, parents: [head.object.sha] }),
+    body: JSON.stringify({ message: created ? 'Publish from ScryPad' : 'Update from ScryPad', tree: newTree.sha, parents: [head!.object.sha] }),
   });
   await gh(token, `/repos/${owner}/${name}/git/refs/heads/${branch}`, {
     method: 'PATCH',

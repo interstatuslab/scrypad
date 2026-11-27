@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Flags common slop patterns. Warn-only by default; pass --strict to exit 1 on hits.
 # Usage: scripts/slop-check.sh [--strict] [path...]
+# (Include flags must come before excludes: GNU grep lets the first option decide unmatched files.)
 # Hits are prompts to look, not automatic errors. See docs/UNSLOP.md.
+# To keep an intentional line, add a short comment containing slop-ok and the reason.
 
 strict=0
 if [ "$1" = "--strict" ]; then strict=1; shift; fi
@@ -20,11 +22,23 @@ check() {
   local out
   local ci=i
   [ "$skip_comments" = "case" ] && ci="" && skip_comments=""
-  out=$(grep -rnI${ci}E $exclude $flags -- "$pattern" "${paths[@]}" 2>/dev/null)
+  out=$(grep -rnI${ci}E $flags $exclude -- "$pattern" "${paths[@]}" 2>/dev/null)
   # Copy checks skip code comment lines (//, /*, *, {/*, <!--, #) in code files
+  # Best-effort browser calls (storage, haptics, clipboard...) may swallow errors on purpose
+  if [ "$skip_comments" = "besteffort" ] && [ -n "$out" ]; then
+    out=$(printf '%s\n' "$out" | grep -vE '(localStorage|sessionStorage|clipboard|vibrate|speechSynthesis|AudioContext|hcaptcha|dataTransfer|pushManager|serviceWorker|releasePointerCapture)')
+    skip_comments=""
+  fi
+  # console.log is real output in command-line tools
+  if [ "$skip_comments" = "cli" ] && [ -n "$out" ]; then
+    out=$(printf '%s\n' "$out" | grep -vE '(^|/)(tools|scripts|bin|cli)/')
+    skip_comments=""
+  fi
   if [ -n "$skip_comments" ] && [ -n "$out" ]; then
     out=$(printf '%s\n' "$out" | grep -vE '\.(jsx|tsx|vue|svelte|js|ts):[0-9]+:[[:space:]]*(//|/\*|\*|\{/\*)' | grep -vE ':[0-9]+:[[:space:]]*<!--')
   fi
+  # Skip minified lines (over 400 chars) and lines marked slop-ok
+  [ -n "$out" ] && out=$(printf '%s\n' "$out" | awk 'length($0) < 400' | grep -v 'slop-ok')
   if [ -n "$out" ]; then
     local n; n=$(printf '%s\n' "$out" | wc -l)
     total=$((total + n))
@@ -35,8 +49,8 @@ check() {
 
 check "Em dashes in copy" "$copy" '—' skip
 check "Sales and inflated words" "$copy" '\b(seamless(ly)?|supercharge|game[- ]?changer|unlock (your|the)|elevate your|effortless(ly)?|cutting[- ]edge|next[- ]level|revolutioni[sz]e|empower)\b' skip
-check "AI vocabulary" "$copy" '\b(delve|tapestry|testament to|embark|realm|underscores?|showcas(e|ing)|boasts|meticulous(ly)?|pivotal|vibrant|intricate|fostering)\b' skip
-check "Staged openers and closers" "$copy" "(here's the thing|let's dive in|imagine this:|in today's fast-paced|at the end of the day|in conclusion|in summary,)" skip
+check "AI vocabulary" "$copy" '(^|[^-_./a-z])(delve|tapestry|testament to|embark|realm|showcas(e|ing)|boasts|meticulous(ly)?|pivotal|vibrant|intricate|fostering)([^-_a-z]|$)' skip
+check "Staged openers and closers" "$copy" "(here's the thing|let's dive in|imagine this:|in today's fast-paced|in conclusion|in summary,)" skip
 check "Not X but Y" "$copy" "(it'?s not just|not only .{1,40} but also|isn'?t just about)" skip
 check "Chat leftovers" "$copy" '(great question|i hope this helps|let me know if you|as an ai\b|certainly!)' skip
 check "Generic CTA and section names" "$copy" '>\s*(get started( today)?|learn more|why choose us|submit)\s*<'
@@ -44,9 +58,9 @@ check "Placeholder links and text" "$copy $code" '(href="#"|lorem ipsum|john doe
 check "Purple AI gradient" "$style" '(#667eea|#764ba2|from-(purple|violet|indigo)-[0-9]+ .*to-(blue|indigo|purple)-[0-9]+|bg-indigo-500)'
 check "Default display fonts" "$style" "font-family:\s*['\"]?(inter|roboto|open sans|arial)\b"
 check "Bounce easing" "$style" '(cubic-bezier\([^)]*-[0-9.]+|ease-?(out-)?(back|elastic|bounce))'
-check "Swallowed errors" "$code" '(catch\s*(\([^)]*\))?\s*\{\s*\}|except[^:]*:\s*pass\b)'
-check "any casts and ignores" "$code" '(as any\b|:\s*any\b|@ts-ignore|# type: ignore)'
-check "Debug logs" "$code" '\bconsole\.(log|debug)\('
+check "Swallowed errors" "$code" '(catch[[:space:]]*(\([^)]*\))?[[:space:]]*\{[[:space:]]*\}|except[^:]*:[[:space:]]*pass\b)' besteffort
+check "any casts and ignores" "$code" '(as any([]);,>]|$)|:[[:space:]]*any([]);,=> ]|$)|<any>|@ts-ignore|# type: ignore)' skip
+check "Debug logs" "$code" '\bconsole\.(log|debug)\(' cli
 check "Narrating comments" "$code" '(//|#)\s*(updated to|changed to|added (a|the|new)|now uses|this (function|method|code) (will|is used to))'
 check "TODO stubs" "$code" '\b(TODO|FIXME|XXX)\b' case
 
