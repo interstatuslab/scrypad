@@ -190,7 +190,7 @@ These override anything above.
 
 - Graves approves every user-facing word. Keep Graves's own words verbatim.
 - Voice: bold, warm, loud, a little eerie, enthusiastic, casual gamer. Short sentences. Exclamation marks where they fit.
-- No em dashes in shipped copy. Use a comma, period or colon.
+- No em dashes in shipped copy. Use a comma, period or colon. The one exception is the dash before a quote's author (— Author).
 - Title Case for headings and buttons, no trailing periods. Sentences stay in sentence case.
 - American spelling.
 - Never put Graves's real name in app credits.
