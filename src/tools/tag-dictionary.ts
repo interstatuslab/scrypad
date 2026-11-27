@@ -329,7 +329,7 @@ export const HTML_TAG_DICTIONARY: TagInfo[] = [
     category: 'Text',
     purpose: 'Preserves exact spaces, tabs, and line breaks',
     description: 'Renders text exactly as typed in the HTML source code, retaining all spaces, tabs, and newlines. Frequently paired with <code> for code blocks.',
-    snippet: '<pre><code>function greet() {\n  console.log("Hello, World!");\n}</code></pre>',
+    snippet: '<pre><code>function greet() {\n  console.log("Hello, World!");\n}</code></pre>', // slop-ok: example code shown to the user
     commonAttributes: ['class']
   },
   {
@@ -660,7 +660,7 @@ export const HTML_TAG_DICTIONARY: TagInfo[] = [
     category: 'Code & Meta',
     purpose: 'Runs client-side JavaScript code or links an external .js file',
     description: 'Contains executable client-side JavaScript code or points to an external script file via src="...".',
-    snippet: '<script>\n  console.log("Hello from ScryPad!");\n</script>',
+    snippet: '<script>\n  console.log("Hello from ScryPad!");\n</script>', // slop-ok: example code shown to the user
     commonAttributes: ['src', 'type', 'defer', 'async']
   }
 ];

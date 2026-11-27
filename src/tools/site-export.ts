@@ -211,8 +211,7 @@ export async function bundleOneFile(fm: FileManager, html: string): Promise<OneF
 /** Saves bytes as a download (web) or through the Save dialog (Windows app). Resolves false if cancelled. */
 export async function saveBytes(name: string, bytes: Uint8Array, kind: 'zip' | 'html'): Promise<boolean> {
   if (isDesktop()) {
-    const t = (window as any).__TAURI__;
-    const saved = await t.core.invoke('save_bytes_as', { suggestedName: name, bytes: Array.from(bytes), kind });
+    const saved = await window.__TAURI__!.core!.invoke('save_bytes_as', { suggestedName: name, bytes: Array.from(bytes), kind });
     return !!saved;
   }
   const blob = new Blob([bytes as BlobPart], { type: kind === 'zip' ? 'application/zip' : 'text/html' });

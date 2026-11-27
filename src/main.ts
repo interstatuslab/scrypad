@@ -51,6 +51,7 @@ import {
 import { CodePane } from './editor/code-pane.ts';
 import { PreviewPane, ActiveElementInfo } from './preview/preview-pane.ts';
 import { FileManager, FileState } from './files/file-manager.ts';
+import type { ProjectFolder, ProjectFileEntry } from './files/project-folder.ts';
 import { SyncCoordinator } from './sync/sync-coordinator.ts';
 import { CDN_LIBRARIES, injectSnippetIntoHtml } from './libraries/cdn-catalog.ts';
 import { extractPalette, replaceColor, ColorSwatch } from './tools/palette-scanner.ts';
@@ -126,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const onItch = /(^|\.)itch\.(io|zone)$/.test(location.hostname);
   // Not in the Windows app either: its files are built in, and an old worker left behind by an
   // earlier version can keep showing that old version. Remove any such worker and its cache once.
-  const inDesktopApp = !!(window as any).__TAURI__ || !!(window as any).__TAURI_INTERNALS__;
+  const inDesktopApp = !!window.__TAURI__ || !!window.__TAURI_INTERNALS__;
   if ('serviceWorker' in navigator && inDesktopApp) {
     navigator.serviceWorker.getRegistrations().then(async (regs) => {
       if (!regs.length) return;
@@ -184,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Toast Helper
   const hudToast = document.getElementById('hud-toast')!;
   const hudToastMsg = document.getElementById('hud-toast-msg')!;
-  let toastTimeout: any;
+  let toastTimeout: ReturnType<typeof setTimeout> | undefined;
 
   function showToast(message: string, durationMs = 2600) {
     if (toastTimeout) clearTimeout(toastTimeout);
@@ -452,11 +453,11 @@ document.addEventListener('DOMContentLoaded', () => {
     path: string;
     isFolder: boolean;
     children: TreeNode[];
-    fileEntry?: any;
+    fileEntry?: ProjectFileEntry;
     kind?: string;
   }
 
-  function buildFileTree(files: any[]): TreeNode[] {
+  function buildFileTree(files: ProjectFileEntry[]): TreeNode[] {
     const root: TreeNode = { name: '', path: '', isFolder: true, children: [] };
 
     for (const file of files) {
@@ -589,6 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
       } else {
         const f = node.fileEntry;
+        if (!f) continue;
         const isAct = (activePath && (activePath === f.path || activePath === f.name));
         const badgeColor = f.kind === 'html' ? 'text-[var(--forge)] bg-[color-mix(in_srgb,var(--forge)_10%,transparent)] border-[color-mix(in_srgb,var(--forge)_30%,transparent)]'
           : f.kind === 'css' ? 'text-[var(--gold)] bg-[color-mix(in_srgb,var(--gold)_10%,transparent)] border-[color-mix(in_srgb,var(--gold)_30%,transparent)]'
@@ -619,15 +621,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return out;
   }
 
-  function renderGroupedHtml(files: any[], activePath: string | null): string {
+  function renderGroupedHtml(files: ProjectFileEntry[], activePath: string | null): string {
     const q = projectSearchQuery.toLowerCase();
     const filteredFiles = q
-      ? files.filter((f: any) => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q))
+      ? files.filter((f) => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q))
       : files;
 
     let out = '';
     for (const group of TYPE_GROUPS) {
-      const groupFiles = filteredFiles.filter((f: any) => f.kind === group.id);
+      const groupFiles = filteredFiles.filter((f) => f.kind === group.id);
       if (groupFiles.length === 0) continue;
 
       const groupKey = `group_${group.id}`;
@@ -647,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="text-[9px] text-[var(--faint)] bg-[var(--panel)] px-1 rounded ml-1 border border-[var(--line)] shrink-0">${groupFiles.length}</span>
           </button>
           <div class="type-group-children ${isCollapsed ? 'hidden' : ''} space-y-0.5">
-            ${groupFiles.map((f: any) => {
+            ${groupFiles.map((f) => {
               const isAct = (activePath && (activePath === f.path || activePath === f.name));
               const dirPart = f.path.includes('/') ? f.path.substring(0, f.path.lastIndexOf('/')) : '';
               return `
@@ -667,7 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return out;
   }
 
-  function renderProjectFiles(project: any) {
+  function renderProjectFiles(project: ProjectFolder | null) {
     if (!project) return;
     const allFiles = project.getFilesList();
     if (allFiles.length === 0) {
@@ -681,7 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const q = projectSearchQuery.toLowerCase();
     const matchingCount = q
-      ? allFiles.filter((f: any) => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q)).length
+      ? allFiles.filter((f) => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q)).length
       : allFiles.length;
 
     if (projectFileCount) {
@@ -1002,8 +1004,8 @@ document.addEventListener('DOMContentLoaded', () => {
       checkDocumentIntegrity(content);
       showToast(`✦ Opened ${fileManager.getFilename()}`);
       rememberFile(fileManager.recentInfo()).then(renderRecent);
-    } catch (err: any) {
-      if (err && err.message === 'permission') return;
+    } catch (err) {
+      if (err instanceof Error && err.message === 'permission') return;
       await forgetFile(rec.key);
       renderRecent();
       showDialog({ title: 'ScryPad Can\'t Find That File', bodyHtml: `<p><b>${escapeHtml(rec.name)}</b> may have been moved, renamed or deleted, so it's been taken off the Recent list.</p>` });
@@ -1040,7 +1042,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Keyboard shortcut Ctrl+S / Cmd+S
   // Keyboard shortcuts (the Help menu lists them)
-  const isDesktopApp = !!(window as any).__TAURI__ || !!(window as any).__TAURI_INTERNALS__;
+  const isDesktopApp = !!window.__TAURI__ || !!window.__TAURI_INTERNALS__;
   if (isDesktopApp) document.querySelectorAll('.kbd-new').forEach((k) => { k.textContent = 'Ctrl+N'; });
   window.addEventListener('keydown', (e) => {
     if (isDialogOpen() || isTourOpen()) return;
@@ -2346,7 +2348,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --- Unsaved work: leave-page warning + a draft kept in this browser ---
-  const tauriWindow = (window as any).__TAURI__?.window?.getCurrentWindow?.();
+  const tauriWindow = window.__TAURI__?.window?.getCurrentWindow?.();
   if (tauriWindow) {
     // Desktop app: ask before closing with unsaved changes
     tauriWindow.onCloseRequested(async (event: { preventDefault: () => void }) => {

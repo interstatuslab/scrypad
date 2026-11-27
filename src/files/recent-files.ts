@@ -7,7 +7,7 @@ export interface RecentFile {
   key: string;          // path on desktop, name + time on the web
   name: string;
   path?: string;        // desktop app
-  handle?: any;         // FileSystemFileHandle (web)
+  handle?: FileSystemFileHandle; // web
   at: number;
 }
 
@@ -47,7 +47,7 @@ export async function listRecent(): Promise<RecentFile[]> {
   try { return (await all()).slice(0, MAX); } catch { return []; }
 }
 
-export async function rememberFile(entry: { name: string; path?: string | null; handle?: any }): Promise<void> {
+export async function rememberFile(entry: { name: string; path?: string | null; handle?: FileSystemFileHandle | null }): Promise<void> {
   if (!entry.path && !entry.handle) return; // a plain upload can't be reopened later
   try {
     const list = await all();
